@@ -221,4 +221,4 @@ with st.expander("Ver Tabela de Dados Detalhada 🕵️‍♀️"):
 
 # --- Rodapé ---
 st.markdown("---")
-st.write("Idealizado por Oscar Ivan Vargas Pineda. Desenvolvido com o auxílio de IA e Streamlit.")
+st.write("Idealizado por Oscar Ivan Vargas Pineda. Desenvolvido com o auxílio de Gemini e Streamlit.")

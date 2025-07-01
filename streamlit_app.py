@@ -2,8 +2,8 @@
 # DASHBOARD AGRÍCOLA DE GOIÁS COM STREAMLIT (VERSÃO AJUSTADA E EM PORTUGUÊS)
 # -----------------------------------------------------------------------------
 # Descrição:
-# Script ajustado para exibir KPIs e gráficos de barras do último ano,
-# calcular o rendimento como média ponderada e traduzido para o português do Brasil.
+# Script com slider de anos e tabela de dados interativa.
+# KPIs e gráficos de barras refletem o último ano do intervalo selecionado.
 #
 # Autor: Gemini
 # Data: 2024-07-31
@@ -77,7 +77,6 @@ if df is None:
     st.stop()
 
 # --- Barra Lateral de Filtros (Sidebar) ---
-# AJUSTE: Carregar imagem de um arquivo local para maior confiabilidade.
 st.sidebar.image("assets/logo.png", width=100)
 st.sidebar.title("Painel de Filtros 🗺️")
 
@@ -92,29 +91,45 @@ municipio_selecionado = st.sidebar.selectbox(
     options=['Todos os Municípios'] + municipios_disponiveis
 )
 
+# NOVO: Filtro por intervalo de anos com um slider
+min_ano = int(df['Ano'].min())
+max_ano = int(df['Ano'].max())
+ano_selecionado = st.sidebar.select_slider(
+    "Selecione um Intervalo de Anos:",
+    options=range(min_ano, max_ano + 1),
+    value=(min_ano, max_ano)
+)
+
 # --- Filtragem do DataFrame Principal ---
+# Filtra primeiro por cultura e município
 if municipio_selecionado == 'Todos os Municípios':
-    df_filtrado = df[df['Cultura'] == cultura_selecionada]
+    df_filtrado_base = df[df['Cultura'] == cultura_selecionada]
 else:
-    df_filtrado = df[(df['Cultura'] == cultura_selecionada) & (df['Município'] == municipio_selecionado)]
+    df_filtrado_base = df[(df['Cultura'] == cultura_selecionada) & (df['Município'] == municipio_selecionado)]
+
+# Aplica o filtro de anos ao resultado anterior
+df_filtrado = df_filtrado_base[
+    (df_filtrado_base['Ano'] >= ano_selecionado[0]) &
+    (df_filtrado_base['Ano'] <= ano_selecionado[1])
+]
+
 
 # --- Corpo Principal do Dashboard ---
 st.title(f"🌾 Dashboard Agrícola: {cultura_selecionada}")
-st.markdown(f"Análise para **{municipio_selecionado}**")
+st.markdown(f"Análise para **{municipio_selecionado}** entre **{ano_selecionado[0]}** e **{ano_selecionado[1]}**")
 st.markdown("---")
 
-# --- KPIs baseados no último ano ---
+# --- KPIs baseados no último ano do intervalo selecionado ---
 if not df_filtrado.empty:
-    latest_year = int(df_filtrado['Ano'].max())
-    df_ultimo_ano = df_filtrado[df_filtrado['Ano'] == latest_year]
+    latest_year_in_range = int(df_filtrado['Ano'].max())
+    df_ultimo_ano = df_filtrado[df_filtrado['Ano'] == latest_year_in_range]
 
-    st.subheader(f"Indicadores Chave (KPIs) para o Ano de {latest_year}")
+    st.subheader(f"Indicadores Chave (KPIs) para o Ano de {latest_year_in_range}")
 
     if not df_ultimo_ano.empty:
         total_area = df_ultimo_ano['Area'].sum()
         total_toneladas = df_ultimo_ano['Toneladas'].sum()
         total_valor = df_ultimo_ano['Valor_Produccion'].sum()
-        # Média ponderada do rendimento
         avg_rendimento = (df_ultimo_ano['Rendimento'] * df_ultimo_ano['Area']).sum() / total_area if total_area > 0 else 0
 
         col1, col2, col3, col4 = st.columns(4)
@@ -123,9 +138,9 @@ if not df_filtrado.empty:
         col3.metric("Valor Total (R$ x1000)", f"{total_valor:,.0f}")
         col4.metric("Rendimento Médio (kg/ha)", f"{avg_rendimento:,.0f}")
     else:
-        st.warning(f"Não há dados disponíveis para o ano de {latest_year} com a seleção atual.")
+        st.warning(f"Não há dados disponíveis para o ano de {latest_year_in_range} com a seleção atual.")
 else:
-    st.warning("Não há dados disponíveis para a cultura e município selecionados.")
+    st.warning("Não há dados disponíveis para a cultura, município e período selecionados.")
 
 
 st.markdown("---")
@@ -134,33 +149,24 @@ st.markdown("---")
 col_graf1, col_graf2 = st.columns(2)
 
 def calcular_metricas_anuais(group):
-    """Calcula as métricas anuais, usando média ponderada para o rendimento."""
     area_sum = group['Area'].sum()
-    toneladas_sum = group['Toneladas'].sum()
-    valor_sum = group['Valor_Produccion'].sum()
-    
     if area_sum > 0:
         rendimento_ponderado = (group['Rendimento'] * group['Area']).sum() / area_sum
     else:
         rendimento_ponderado = 0
-        
     return pd.Series({
         'Area': area_sum,
-        'Toneladas': toneladas_sum,
-        'Valor_Produccion': valor_sum,
+        'Toneladas': group['Toneladas'].sum(),
+        'Valor_Produccion': group['Valor_Produccion'].sum(),
         'Rendimento': rendimento_ponderado
     })
 
 with col_graf1:
     st.subheader("📈 Evolução Anual das Métricas")
     if not df_filtrado.empty:
-        # --- AJUSTE 2: Usar apply para calcular a média ponderada do rendimento para cada ano ---
         time_series_data = df_filtrado.groupby('Ano').apply(calcular_metricas_anuais).reset_index()
-        
         fig_time_series = px.line(
-            time_series_data,
-            x='Ano',
-            y=['Area', 'Toneladas', 'Valor_Produccion', 'Rendimento'],
+            time_series_data, x='Ano', y=['Area', 'Toneladas', 'Valor_Produccion', 'Rendimento'],
             title=f'Evolução para {cultura_selecionada}',
             labels={'value': 'Valor', 'variable': 'Métrica', 'Ano': 'Ano'},
             template='plotly_white'
@@ -168,47 +174,51 @@ with col_graf1:
         fig_time_series.update_layout(legend_title_text='Métricas')
         st.plotly_chart(fig_time_series, use_container_width=True)
     else:
-        st.info("Selecione uma cultura e município para ver a evolução.")
+        st.info("Selecione um período para ver a evolução.")
 
 with col_graf2:
-    # --- Gráfico de barras solo para o último ano ---
-    st.subheader(f"📊 Comparativo para o Ano de {latest_year}")
-    metrica_barra = st.selectbox(
-        "Selecione uma métrica para comparar:",
-        options=[
-            ('Produção (Toneladas)', 'Toneladas'),
-            ('Área Colhida (ha)', 'Area'),
-            ('Valor da Produção (R$ x1000)', 'Valor_Produccion'),
-            ('Rendimento (kg/ha)', 'Rendimento')
-        ],
-        format_func=lambda x: x[0]
-    )
-    
-    if not df_ultimo_ano.empty:
-        metric_key = metrica_barra[1]
-        
-        if municipio_selecionado == 'Todos os Municípios':
-            aggregation_func = 'mean' if metric_key == 'Rendimento' else 'sum'
-            bar_data = df_ultimo_ano.groupby('Município').agg({metric_key: aggregation_func}).nlargest(10, columns=metric_key).reset_index()
-            bar_title = f'Top 10 Municípios por {metrica_barra[0]}'
-            x_axis, y_axis = 'Município', metric_key
-        else:
-            df_municipio_ultimo_ano = df[(df['Município'] == municipio_selecionado) & (df['Ano'] == latest_year)]
-            aggregation_func = 'mean' if metric_key == 'Rendimento' else 'sum'
-            bar_data = df_municipio_ultimo_ano.groupby('Cultura').agg({metric_key: aggregation_func}).reset_index()
-            bar_title = f'Comparativo de Culturas em {municipio_selecionado}'
-            x_axis, y_axis = 'Cultura', metric_key
-
-        fig_bar_chart = px.bar(
-            bar_data, x=x_axis, y=y_axis, title=bar_title, template='plotly_white',
-            color=y_axis, color_continuous_scale=px.colors.sequential.Viridis
+    if not df_filtrado.empty:
+        latest_year_in_range = int(df_filtrado['Ano'].max())
+        df_ultimo_ano_grafico = df_filtrado[df_filtrado['Ano'] == latest_year_in_range]
+        st.subheader(f"📊 Comparativo para o Ano de {latest_year_in_range}")
+        metrica_barra = st.selectbox(
+            "Selecione uma métrica para comparar:",
+            options=[
+                ('Produção (Toneladas)', 'Toneladas'), ('Área Colhida (ha)', 'Area'),
+                ('Valor da Produção (R$ x1000)', 'Valor_Produccion'), ('Rendimento (kg/ha)', 'Rendimento')
+            ],
+            format_func=lambda x: x[0]
         )
-        fig_bar_chart.update_layout(coloraxis_showscale=False)
-        st.plotly_chart(fig_bar_chart, use_container_width=True)
-    else:
-        st.info("Não há dados para comparar no último ano.")
+        
+        if not df_ultimo_ano_grafico.empty:
+            metric_key = metrica_barra[1]
+            if municipio_selecionado == 'Todos os Municípios':
+                aggregation_func = 'mean' if metric_key == 'Rendimento' else 'sum'
+                bar_data = df_ultimo_ano_grafico.groupby('Município').agg({metric_key: aggregation_func}).nlargest(10, columns=metric_key).reset_index()
+                bar_title = f'Top 10 Municípios por {metrica_barra[0]}'
+                x_axis, y_axis = 'Município', metric_key
+            else:
+                df_municipio_ultimo_ano = df[(df['Município'] == municipio_selecionado) & (df['Ano'] == latest_year_in_range)]
+                aggregation_func = 'mean' if metric_key == 'Rendimento' else 'sum'
+                bar_data = df_municipio_ultimo_ano.groupby('Cultura').agg({metric_key: aggregation_func}).reset_index()
+                bar_title = f'Comparativo de Culturas em {municipio_selecionado}'
+                x_axis, y_axis = 'Cultura', metric_key
+            
+            fig_bar_chart = px.bar(
+                bar_data, x=x_axis, y=y_axis, title=bar_title, template='plotly_white',
+                color=y_axis, color_continuous_scale=px.colors.sequential.Viridis
+            )
+            fig_bar_chart.update_layout(coloraxis_showscale=False)
+            st.plotly_chart(fig_bar_chart, use_container_width=True)
+        else:
+            st.info("Não há dados para comparar no último ano do intervalo.")
+
+# --- NOVO: Tabela de Dados Detalhada ---
+st.markdown("---")
+with st.expander("Ver Tabela de Dados Detalhada 🕵️‍♀️"):
+    # Mostra o dataframe filtrado, que já corresponde a todas as seleções
+    st.dataframe(df_filtrado)
 
 # --- Rodapé ---
 st.markdown("---")
-# AJUSTE: Dar crédito ao idealizador do projeto.
 st.write("Idealizado por Oscar Ivan Vargas Pineda. Desenvolvido com o auxílio de IA e Streamlit.")

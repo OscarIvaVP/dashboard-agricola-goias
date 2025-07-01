@@ -81,7 +81,7 @@ if geojson_data is None:
     st.stop()
 
 # --- Barra Lateral de Filtros (Sidebar) ---
-st.sidebar.image("assets/logo.png", width=100)
+st.sidebar.image("assets/logo.png", width=200)
 st.sidebar.title("Painel de Filtros 🗺️")
 cultura_selecionada = st.sidebar.selectbox("Selecione uma Cultura:", options=sorted(df['Cultura'].unique()))
 municipios_disponiveis = sorted(df[df['Cultura'] == cultura_selecionada]['Município'].unique())

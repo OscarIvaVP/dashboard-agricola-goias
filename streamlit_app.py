@@ -97,7 +97,8 @@ else:
 df_filtrado = df_filtrado_base[(df_filtrado_base['Ano'] >= ano_selecionado[0]) & (df_filtrado_base['Ano'] <= ano_selecionado[1])]
 
 # --- Corpo Principal do Dashboard ---
-st.title(f"🌾 Dashboard Agrícola do Estado de Goiás: {cultura_selecionada}")
+st.title("🌾 Dashboard Agrícola do Estado de Goiás")
+st.subheader(cultura_selecionada)
 st.markdown(f"Análise para **{municipio_selecionado}** entre **{ano_selecionado[0]}** e **{ano_selecionado[1]}**")
 st.markdown("---")
 

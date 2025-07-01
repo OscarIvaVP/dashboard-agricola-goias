@@ -2,7 +2,8 @@
 # DASHBOARD AGRÍCOLA DE GOIÁS COM STREAMLIT (VERSÃO COM MAPA)
 # -----------------------------------------------------------------------------
 # Descrição:
-# Script final com mapa interativo, slider de anos e tabela de dados.
+# Script final com mapa interativo, slider de anos, tabela de dados e
+# paleta de cores ajustada para verde.
 #
 # Autor: Gemini
 # Data: 2024-07-31
@@ -86,7 +87,7 @@ cultura_selecionada = st.sidebar.selectbox("Selecione uma Cultura:", options=sor
 municipios_disponiveis = sorted(df[df['Cultura'] == cultura_selecionada]['Município'].unique())
 municipio_selecionado = st.sidebar.selectbox("Selecione um Município (ou todos):", options=['Todos os Municípios'] + municipios_disponiveis)
 min_ano, max_ano = int(df['Ano'].min()), int(df['Ano'].max())
-ano_selecionado = st.sidebar.select_slider("Selecione um Intervalo de Anos:", options=range(min_ano, max_ano + 1), value=(min_ano, max_ano))
+ano_selecionado = st.sidebar.select_slider("Selecione um Intervalo de Anos para os gráficos:", options=range(min_ano, max_ano + 1), value=(min_ano, max_ano))
 
 # --- Filtragem do DataFrame Principal ---
 if municipio_selecionado == 'Todos os Municípios':
@@ -96,7 +97,7 @@ else:
 df_filtrado = df_filtrado_base[(df_filtrado_base['Ano'] >= ano_selecionado[0]) & (df_filtrado_base['Ano'] <= ano_selecionado[1])]
 
 # --- Corpo Principal do Dashboard ---
-st.title(f"🌾 Dashboard Agrícola: {cultura_selecionada}")
+st.title(f"🌾 Dashboard Agrícola do Estado de Goiás: {cultura_selecionada}")
 st.markdown(f"Análise para **{municipio_selecionado}** entre **{ano_selecionado[0]}** e **{ano_selecionado[1]}**")
 st.markdown("---")
 
@@ -118,7 +119,7 @@ if not df_filtrado.empty:
 else:
     st.warning("Não há dados disponíveis para a cultura, município e período selecionados.")
 
-# --- NOVO: Abas para organizar o conteúdo ---
+# --- Abas para organizar o conteúdo ---
 tab_analise, tab_mapa = st.tabs(["📊 Análise de Gráficos", "🗺️ Mapa Interativo"])
 
 with tab_analise:
@@ -155,29 +156,32 @@ with tab_analise:
                     bar_data = df_municipio_ultimo_ano.groupby('Cultura').agg({metric_key: agg_func}).reset_index()
                     bar_title = f'Comparativo de Culturas em {municipio_selecionado}'
                     x_axis, y_axis = 'Cultura', metric_key
-                fig_bar_chart = px.bar(bar_data, x=x_axis, y=y_axis, title=bar_title, template='plotly_white', color=y_axis, color_continuous_scale=px.colors.sequential.Viridis)
+                # AJUSTE: Mudar a escala de cores do gráfico de barras para verde
+                fig_bar_chart = px.bar(bar_data, x=x_axis, y=y_axis, title=bar_title, template='plotly_white', color=y_axis, color_continuous_scale="Greens")
                 fig_bar_chart.update_layout(coloraxis_showscale=False)
                 st.plotly_chart(fig_bar_chart, use_container_width=True)
 
 with tab_mapa:
-    st.subheader("🗺️ Análise Geográfica por Município")
-    if not df_filtrado.empty:
-        latest_year_in_range = int(df_filtrado['Ano'].max())
-        df_mapa = df_filtrado[df_filtrado['Ano'] == latest_year_in_range]
-        
+    absolute_latest_year = int(df['Ano'].max())
+    st.subheader(f"🗺️ Análise Geográfica por Município ({absolute_latest_year})")
+    st.markdown(f"Exibindo dados para o último ano registrado: **{absolute_latest_year}**. O filtro de anos do menu lateral não afeta este mapa.")
+    
+    df_mapa = df[(df['Cultura'] == cultura_selecionada) & (df['Ano'] == absolute_latest_year)]
+    
+    if not df_mapa.empty:
         metrica_mapa = st.selectbox("Selecione uma métrica para visualizar no mapa:", options=[('Produção (Toneladas)', 'Toneladas'), ('Área Colhida (ha)', 'Area'), ('Valor da Produção (R$ x1000)', 'Valor_Produccion'), ('Rendimento (kg/ha)', 'Rendimento')], format_func=lambda x: x[0], key='select_metrica_mapa')
         
-        # Agrupar por município para garantir um valor por município
         agg_func_mapa = 'mean' if metrica_mapa[1] == 'Rendimento' else 'sum'
         df_mapa_agregado = df_mapa.groupby('Município').agg({metrica_mapa[1]: agg_func_mapa}).reset_index()
 
+        # AJUSTE: Mudar a escala de cores do mapa para verde
         fig_mapa = px.choropleth_mapbox(
             df_mapa_agregado,
             geojson=geojson_data,
             locations='Município',
-            featureidkey='properties.name',  # Chave de conexão com o GeoJSON
+            featureidkey='properties.name',
             color=metrica_mapa[1],
-            color_continuous_scale="Viridis",
+            color_continuous_scale="Greens",
             mapbox_style="carto-positron",
             zoom=4.5,
             center={"lat": -15.9, "lon": -49.8},
@@ -187,12 +191,12 @@ with tab_mapa:
         )
         fig_mapa.update_layout(
             margin={"r":0,"t":40,"l":0,"b":0},
-            title_text=f'{metrica_mapa[0]} por Município em {latest_year_in_range}',
+            title_text=f'{metrica_mapa[0]} por Município em {absolute_latest_year}',
             title_x=0.5
         )
         st.plotly_chart(fig_mapa, use_container_width=True)
     else:
-        st.info("Não há dados para exibir no mapa com os filtros atuais.")
+        st.info(f"Não há dados para exibir no mapa para a cultura '{cultura_selecionada}' no ano de {absolute_latest_year}.")
 
 # --- Tabela de Dados Detalhada ---
 with st.expander("Ver Tabela de Dados Detalhada 🕵️‍♀️"):

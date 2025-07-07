@@ -3,7 +3,7 @@
 # -----------------------------------------------------------------------------
 # Descrição:
 # Script final com mapa interativo, slider de anos, tabela de dados e
-# paleta de cores ajustada para verde.
+# paleta de cores ajustada para verde. O gráfico de linhas agora é dinâmico.
 #
 # Autor: Gemini
 # Data: 2024-07-31
@@ -131,11 +131,37 @@ with tab_analise:
         return pd.Series({'Area': area_sum, 'Toneladas': group['Toneladas'].sum(), 'Valor_Produccion': group['Valor_Produccion'].sum(), 'Rendimento': rendimento_ponderado})
 
     with col_graf1:
-        st.subheader("📈 Evolução Anual das Métricas")
+        st.subheader("📈 Evolução Anual de uma Métrica")
+        
+        # AJUSTE: Dicionário para mapear nomes, colunas e unidades
+        metricas_evolucao = {
+            'Área Colhida': {'col': 'Area', 'unidade': 'ha'},
+            'Produção': {'col': 'Toneladas', 'unidade': 't'},
+            'Valor da Produção': {'col': 'Valor_Produccion', 'unidade': 'R$ x1000'},
+            'Rendimento': {'col': 'Rendimento', 'unidade': 'kg/ha'}
+        }
+        
+        # AJUSTE: Selectbox para escolher a métrica do gráfico de linhas
+        metrica_linha_selecionada = st.selectbox(
+            "Selecione uma métrica para a evolução anual:",
+            options=list(metricas_evolucao.keys())
+        )
+
         if not df_filtrado.empty:
             time_series_data = df_filtrado.groupby('Ano').apply(calcular_metricas_anuais).reset_index()
-            fig_time_series = px.line(time_series_data, x='Ano', y=['Area', 'Toneladas', 'Valor_Produccion', 'Rendimento'], title=f'Evolução para {cultura_selecionada}', labels={'value': 'Valor', 'variable': 'Métrica', 'Ano': 'Ano'}, template='plotly_white')
-            fig_time_series.update_layout(legend_title_text='Métricas')
+            
+            coluna_selecionada = metricas_evolucao[metrica_linha_selecionada]['col']
+            unidade_selecionada = metricas_evolucao[metrica_linha_selecionada]['unidade']
+
+            fig_time_series = px.line(
+                time_series_data, 
+                x='Ano', 
+                y=coluna_selecionada, # AJUSTE: Plotar apenas a coluna selecionada
+                title=f'Evolução de {metrica_linha_selecionada} para {cultura_selecionada}',
+                labels={'Ano': 'Ano', coluna_selecionada: f'{metrica_linha_selecionada} ({unidade_selecionada})'}, # AJUSTE: Label dinâmico
+                template='plotly_white'
+            )
+            fig_time_series.update_traces(line_color='#2E8B57') # Cor verde para a linha
             st.plotly_chart(fig_time_series, use_container_width=True)
 
     with col_graf2:
@@ -157,7 +183,7 @@ with tab_analise:
                     bar_data = df_municipio_ultimo_ano.groupby('Cultura').agg({metric_key: agg_func}).reset_index()
                     bar_title = f'Comparativo de Culturas em {municipio_selecionado}'
                     x_axis, y_axis = 'Cultura', metric_key
-                # AJUSTE: Mudar a escala de cores do gráfico de barras para verde
+                
                 fig_bar_chart = px.bar(bar_data, x=x_axis, y=y_axis, title=bar_title, template='plotly_white', color=y_axis, color_continuous_scale="Greens")
                 fig_bar_chart.update_layout(coloraxis_showscale=False)
                 st.plotly_chart(fig_bar_chart, use_container_width=True)
@@ -175,7 +201,6 @@ with tab_mapa:
         agg_func_mapa = 'mean' if metrica_mapa[1] == 'Rendimento' else 'sum'
         df_mapa_agregado = df_mapa.groupby('Município').agg({metrica_mapa[1]: agg_func_mapa}).reset_index()
 
-        # AJUSTE: Mudar a escala de cores do mapa para verde
         fig_mapa = px.choropleth_mapbox(
             df_mapa_agregado,
             geojson=geojson_data,
@@ -205,4 +230,4 @@ with st.expander("Ver Tabela de Dados Detalhada 🕵️‍♀️"):
 
 # --- Rodapé ---
 st.markdown("---")
-st.write("Idealizado por Oscar Ivan Vargas Pineda. Desenvolvido com o auxílio de Google Gemini e Streamlit.")
+st.write("Idealizado por Oscar Ivan Vargas Pineda. Desenvolvido com o auxílio de Gemini e Streamlit.")
